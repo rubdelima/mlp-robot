@@ -1,0 +1,8 @@
+streamlit
+pillow
+matplotlib
+roboticstoolbox-python
+opencv-contrib-python
+scikit-learn
+pyserial
+numpy<2
