@@ -1,6 +1,5 @@
 import numpy as np
 from math import atan2, acos, cos, sin
-from sklearn.preprocessing import MinMaxScaler
 
 def ikine(x_target, l1, l2, l3):
     """
@@ -86,54 +85,3 @@ def fkine(theta, l1, l2, l3, z):
     # Retorna a posição cartesiana [x, y, z]
     pos = [x, y, z]
     return pos
-
-def gen_data_train(num_amostras=1000, l1=0.1, l2=0.124, l3=0.06, x_range=(-0.5, 0.5), y_range=(-0.5, 0.5), 
-                   z_range=(-0.5, 0.5), normalize=False, folds=0):
-    """
-    Gera dados de treinamento para um robô com 4 eixos.
-
-    Parâmetros:
-    num_amostras (int): Número de amostras a serem geradas.
-    l1 (float): Comprimento do primeiro link do braço.
-    l2 (float): Comprimento do segundo link do braço.
-    l3 (float): Comprimento do terceiro link do braço.
-    x_range (tuple): Intervalo para as coordenadas x da posição final.
-    y_range (tuple): Intervalo para as coordenadas y da posição final.
-    z_range (tuple): Intervalo para as coordenadas z da posição final.
-    normalize (bool): Se True, normaliza as entradas e saídas.
-    folds (int): Número de folds para validação cruzada (não utilizado na geração de dados, apenas para a estrutura).
-
-    Retorno:
-    dados_entradas (np.array): Dados de entrada gerados.
-    dados_saidas (np.array): Dados de saída gerados.
-    """
-    dados_entradas = []  # Coordenadas (x, y, z), posição final e últimas juntas
-    dados_saidas = []    # Configurações finais das juntas (axis0, axis1, axis2, axis3)
-
-    for _ in range(num_amostras):
-        # Gerando coordenadas aleatórias dentro de um espaço de trabalho
-        x = np.random.uniform(x_range[0], x_range[1])
-        y = np.random.uniform(y_range[0], y_range[1])
-        z = np.random.uniform(z_range[0], z_range[1])
-
-        # Gerando a posição final aleatória
-        x_final = np.random.uniform(x_range[0], x_range[1])
-        y_final = np.random.uniform(y_range[0], y_range[1])
-        z_final = np.random.uniform(z_range[0], z_range[1])
-
-        # Chamando a função de cinemática inversa para calcular as juntas finais
-        theta_final = ikine([x_final, y_final, z_final], l1, l2, l3)
-
-        # Armazenando as entradas (posição inicial, posição final e configurações de juntas)
-        dados_entradas.append([x, y, z, x_final, y_final, z_final] + theta_final[:4])  # Considera 4 eixos
-        dados_saidas.append(theta_final[:4])  # Configuração final das juntas (axis0, axis1, axis2, axis3)
-
-    # Normalização (se necessário)
-    if normalize:
-        scaler_entradas = MinMaxScaler()
-        dados_entradas = scaler_entradas.fit_transform(dados_entradas)
-
-        scaler_saidas = MinMaxScaler()
-        dados_saidas = scaler_saidas.fit_transform(dados_saidas)
-
-    return np.array(dados_entradas), np.array(dados_saidas)

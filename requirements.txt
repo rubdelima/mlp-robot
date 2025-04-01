@@ -5,4 +5,8 @@ roboticstoolbox-python
 opencv-contrib-python
 scikit-learn
 pyserial
+pandas
 numpy<2
+tqdm
+ipywidgets
+jupyter

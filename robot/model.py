@@ -48,3 +48,34 @@ class Robot():
 
     def get_positions(self):
         return (self.axis0, self.axis1, self.axis2, self.axis3)
+
+class FakeRobot():
+    def __init__(self):
+        self.axis0 = 80
+        self.axis1 = 75
+        self.axis2 = 50
+        self.axis3 = 0
+    
+    def move(self):
+        
+        comando = f"0:{self.axis0%180}, 1:{self.axis1%180}, 2:{self.axis2%180}, 3:{self.axis3%180}"        
+        print(f"Comando enviado: {comando}")
+        time.sleep(0.2)
+        
+        # Lê a resposta do Arduino
+        time.sleep(0.2)
+    
+    def reset(self):
+        self.axis0 = 80
+        self.axis1 = 75
+        self.axis2 = 50
+        self.axis3 = 0
+        self.move()
+    
+    def move_to(self, axis0 =None, axis1=None, axis2=None, axis3=None):
+        self.axis0 = axis0 if axis0 is not None else self.axis0
+        self.axis1 = axis1 if axis1 is not None else self.axis1
+        self.axis2 = axis2 if axis2 is not None else self.axis2
+        self.axis3 = axis3 if axis3 is not None else self.axis3
+        self.move()
+    
