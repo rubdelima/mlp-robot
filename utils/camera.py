@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 class Camera:
     def __init__(self, webcam_index=0):
         self.webcam_index = webcam_index
-        self.cap = cv2.VideoCapture(webcam_index)
+        self.cap = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
         self.parameters = cv2.aruco.DetectorParameters()
         
@@ -25,16 +27,25 @@ class Camera:
         
         corners, ids, _ = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=self.parameters)
 
+        x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64 = [None]*12
+
         if ids is not None and 0 in ids:
             idx = list(ids).index(0)
-            corner = corners[idx]
-            x = int(corner[0][0][0])
-            y = int(corner[0][0][1])
+            corner = corners[idx][0]
+
+            x0, y0 = int(corner[0][0]), int(corner[0][1])
+            x1, y1 = int(corner[1][0]), int(corner[1][1])
+            x2, y2 = int(corner[2][0]), int(corner[2][1])
+            x3, y3 = int(corner[3][0]), int(corner[3][1])
+
+            xc = int((x0 + x2) / 2) # X_central
+            yc = int((y0 + y2) / 2) # Y_central
+
+            diagonal = np.sqrt((x0 - x2)**2 + (y0 - y2)**2)
 
             frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
         else:
             frame = cv2.aruco.drawDetectedMarkers(frame, [], np.array([]))
-            x, y = None, None
 
         if plot_image:
             plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -44,9 +55,11 @@ class Camera:
         if return_base64:
             _, buffer = cv2.imencode('.jpg', frame)
             img_base64 = base64.b64encode(buffer).decode('utf-8')
-            return x, y, img_base64
+        
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        return x, y, None
+        return x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64, width, height
     
     def show_arucos(self):
         self.check_camera()

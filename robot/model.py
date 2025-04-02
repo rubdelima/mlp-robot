@@ -21,9 +21,9 @@ class Robot():
     
     def reset(self):
         self.axis0 = 80
-        self.axis1 = 75
-        self.axis2 = 50
-        self.axis3 = 0
+        self.axis1 = 130
+        self.axis2 = 0
+        self.axis3 = 100
         self.move()
     
     def move_to(self, axis0 =None, axis1=None, axis2=None, axis3=None):
