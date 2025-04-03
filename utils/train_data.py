@@ -83,7 +83,7 @@ def real_data_train(
                 i += 1
                 x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=show_image, return_base64=capture_image) 
                 
-                data[data_key] = [axis0, axis1, axis2, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, width, height, b64]
+                data[data_key] = [axis0, axis1, axis2,axis3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, width, height, b64]
                 
                 if capture_image:
                     data[data_key].append(b64)
@@ -214,7 +214,7 @@ theta0 = {theta[0]} | theta1 = {theta[1]} | theta2 = {theta[2]} | theta3 = {thet
         collection_name = 'teste'
         #save_results(data, collection_name)
         #df = pd.DataFrame(data.values(), columns=["axis0", "axis1", "axis2", "axis3", "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3", "x_central", "y_central", 'diagonal', 'width', 'height'] + (["b64_image"] if capture_image else []))
-        data.to_csv(f"./data/{collection_name}.csv", index=False)
+        data.to_csv(f"./data/new{collection_name}.csv", index=False)
         
         try:
             camera.release()
@@ -291,3 +291,55 @@ def sim_data_train(num_amostras=1000, l1=0.1, l2=0.124, l3=0.06, x_range=(-0.5, 
         dados_saidas = scaler_saidas.fit_transform(dados_saidas)
 
     return np.array(dados_entradas), np.array(dados_saidas)
+
+def get_data_train_inike(
+    robot : Robot,
+    camera : Camera,
+    x_range : tuple[float, float],
+    y_range : tuple[float, float],
+    z : float = 0.1,
+    step : int=10,
+    l1 : float=0.1, l2 : float=0.124, l3: float = 0.06
+):
+    
+    tested_positions = list(product(
+        range(int(x_range[0]*100), int(x_range[1]*100), step),
+        range(int(y_range[0]*100), int(y_range[1]*100), step)
+    ))
+    
+    data = load_results(f"ikine{x_range, y_range, z, step}")
+    
+    last_position = (robot.axis0, robot.axis1, robot.axis2, robot.axis3)
+    
+    try:
+        for int_x, int_y in tested_positions:
+            x, y = int_x/100, int_y/100
+            data_key = f"{int_x}_{int_y}_{z}"
+            
+            if data_key not in data:
+                t0, t1, t2, t3, _, _ = ikine([x, y, z], l1, l2, l3)
+
+                robot.move_to(t0, t1, t2, t3)
+                #dynamic_sleep(last_position, (t0,t1, t2, t3))
+                clear_output(wait=True)
+                print("Testando posções para: ", x, y)
+                time.sleep(5)
+                x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
+
+                data[data_key] = [x, y, z, t0,t1, t2, t3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height]
+
+                last_position = (t0, t1, t2, t3)
+    except Exception as e:
+        print(f"Erro ao testar a posição: {e}")
+        print(traceback.format_exception(e))
+    
+    finally:
+        save_results(data,f"ikine{(x_range, y_range, z, step)}" )
+        df = pd.DataFrame(data.values(),columns=[
+            "x", "y", "z", "t0", "t1", "t2", "t3",
+            "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3",
+            "xc", "yc", "diagonal", "b64_image", "width", "height"
+        ])
+        
+        df.to_csv(f"./data/ikine{(x_range, y_range, z, step)}.csv", index=False)
+        
