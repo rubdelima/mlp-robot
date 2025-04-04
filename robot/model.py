@@ -1,4 +1,5 @@
 from serial import Serial
+import numpy as np
 import time
 
 class Robot():
@@ -21,9 +22,9 @@ class Robot():
     
     def reset(self):
         self.axis0 = 80
-        self.axis1 = 130
-        self.axis2 = 0
-        self.axis3 = 100
+        self.axis1 = 161.55
+        self.axis2 = 171.62
+        self.axis3 = 10
         self.move()
     
     def move_to(self, axis0 =None, axis1=None, axis2=None, axis3=None):
@@ -33,6 +34,10 @@ class Robot():
         self.axis3 = axis3 if axis3 is not None else self.axis3
         self.move()
     
+    def move_to_ikine(self, theta_target:np.ndarray):
+        dtheta = np.array([1, 1, -1, 1, 1, 1]) * (theta_target - np.radians([0, 90, 0, 0, 0, 0]))
+        return np.rad2deg(dtheta) + np.array((80,80,50,50,0,0))
+
     def rotate(self, axis0 =None, axis1=None, axis2=None, axis3=None):
         self.axis0 += (axis0 if axis0 is not None else 0)
         self.axis1 += (axis1 if axis1 is not None else 0)

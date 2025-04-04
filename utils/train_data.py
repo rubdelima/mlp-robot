@@ -7,10 +7,10 @@ import traceback
 from IPython.display import clear_output, display
 from utils.camera import Camera
 import numpy as np
-from utils.functions import ikine, fkine
+from utils.functions import *
 from sklearn.preprocessing import MinMaxScaler
 import time
-from random import randint
+from random import choice
 
 def load_results(file_name):
     try:
@@ -110,11 +110,11 @@ def real_data_train(
 def new_data_train(
 	    robot : Robot | FakeRobot, # Robô que iremos controlar
 	    camera : Camera, # Camera que iremos usar para capturar o ArUco
-	    x_range: int = 640,
-        y_range: int = 480,
-        z=0.12,
+	    z=0.12,
+        x_px_size: int = 640,
+        y_px_size: int = 480,
+        tam_diagonal:float=0.06, # em m
         num_samples = 10,
-        step : int = 5,  # Steps de quanto vamos variar os eixos a cada iteração
         capture_image : bool = False, # Para salvar como um dos dados a imagem em b64
         show_image : bool = False # Para visualzar a imagem em tempo real
 	    )->pd.DataFrame:
@@ -124,11 +124,17 @@ def new_data_train(
         range(*axis2_range, step),range(*axis3_range, step)
     ))'''
     
+    max_axis_pos = max_range(z) # aqui "axis" significa eixo do eixo cartesiano mesmo
+
+    x_range = range(0.04, 2, ) # vai ter q criar um range dos x e y possíveis em m (na real cm mas blz)
+
     x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=False, return_base64=capture_image)
 
     if(x0 is None):
         print('Aruco não localizado')
         pass
+
+    dim_convert = lambda x: x * (tam_diagonal/diagonal)
 
     data = pd.DataFrame(columns=['theta0', 'theta1', 'theta2', 'theta3', 'x_camera', 'y_camera', 'x', 'y'])
 
@@ -153,9 +159,11 @@ def new_data_train(
         i = 0
         while(i<num_samples):
 
-            new_pos = (randint(0,x_range), randint(0,y_range), z)
-            print(new_pos)
-            theta = ikine(new_pos, l1=0.1, l2=0.124, l3=0.06)
+            #x_px = randint(0.04,x_range)
+            #y_px = rand(0.04,y_range)
+            new_pos = (dim_convert(x_px), dim_convert(y_px), z)
+            print(f'px: ({x_px}, {y_px}, {z})\tcm: {new_pos}')
+            theta = mapping(ikine(new_pos, l1=0.1, l2=0.124, l3=0.06))
 
             print(f'''angulação: 
 theta0 = {theta[0]} | theta1 = {theta[1]} | theta2 = {theta[2]} | theta3 = {theta[3]}''')
@@ -163,14 +171,16 @@ theta0 = {theta[0]} | theta1 = {theta[1]} | theta2 = {theta[2]} | theta3 = {thet
             #relative_pos = (new_pos[0]-x0, new_pos[1]-y0, z)
 
             robot.move_to(theta[0], theta[1], theta[2], theta[3])
-            time.sleep(10) # Espera 5 segundos para o braço se mover para a posição desejada
+            time.sleep(7) # Espera 5 segundos para o braço se mover para a posição desejada
+
+            _ = camera.get_aruco0_positions(plot_image=False, return_base64=False) # teste
 
             #_new
             x0_new, y0_new, _, _, _, _, _, _, _, _, _, _, _, _ = camera.get_aruco0_positions(plot_image=show_image, return_base64=capture_image)
 
             if(x0_new is not None):
 
-                relative_pos = (x0_new-x0, y0_new-y0, z)
+                relative_pos = (dim_convert(x0_new)-x0, dim_convert(y0_new)-y0, z)
 
                 print(f'''posição na câmera: ({x0_new}, {y0_new}, {z})
     posição relativa à origem: {relative_pos}''')
@@ -208,6 +218,7 @@ theta0 = {theta[0]} | theta1 = {theta[1]} | theta2 = {theta[2]} | theta3 = {thet
     
     except Exception as e:
         print(f"Erro ao testar a posição: {e}")
+        camera.release()
         print(traceback.format_exception(e))
     
     finally:
@@ -297,7 +308,7 @@ def get_data_train_inike(
     camera : Camera,
     x_range : tuple[float, float],
     y_range : tuple[float, float],
-    z : float = 0.1,
+    z : float = 0.12,
     step : int=10,
     l1 : float=0.1, l2 : float=0.124, l3: float = 0.06
 ):
@@ -309,6 +320,8 @@ def get_data_train_inike(
     
     data = load_results(f"ikine{x_range, y_range, z, step}")
     
+    #max_axis = max_range(z)
+
     last_position = (robot.axis0, robot.axis1, robot.axis2, robot.axis3)
     
     try:
