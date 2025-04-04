@@ -303,48 +303,109 @@ def sim_data_train(num_amostras=1000, l1=0.1, l2=0.124, l3=0.06, x_range=(-0.5, 
 
     return np.array(dados_entradas), np.array(dados_saidas)
 
+def range_filter(values):
+    x, y , z= values
+    
+    return (np.sqrt(x**2 + y**2) > 0.04)
+
+def calculate_distance(p1, p2):
+    # Distância Euclidiana considerando tanto as posições (x, y, z) quanto os ângulos (t0, t1, t2, t3)
+    pos_diff = np.array(p1[:3]) - np.array(p2[:3])  # Diferença nas coordenadas (x, y, z)
+    angles_diff = np.array(p1[3:]) - np.array(p2[3:])  # Diferença nos ângulos (t0, t1, t2, t3)
+    
+    return np.linalg.norm(np.concatenate((pos_diff, angles_diff)))  # Retorna a distância total
+
+def sort_positions(ikine_positions):
+    # Inicia a lista com o primeiro ponto (pode ser qualquer ponto)
+    sorted_positions = [ikine_positions.pop(0)]
+    
+    while ikine_positions:
+        # Encontra o ponto mais próximo ao último ponto da lista ordenada
+        last_position = sorted_positions[-1]
+        closest_point = min(ikine_positions, key=lambda x: calculate_distance(last_position, x))
+        sorted_positions.append(closest_point)
+        ikine_positions.remove(closest_point)
+    
+    return sorted_positions
+
+
 def get_data_train_inike(
     robot : Robot,
     camera : Camera,
     x_range : tuple[float, float],
     y_range : tuple[float, float],
-    z : float = 0.12,
+    z_list : list[float] = [0.12],
     step : int=10,
-    l1 : float=0.1, l2 : float=0.124, l3: float = 0.06
+    l1 : float=0.1, l2 : float=0.124, l3: float = 0.06,
+    max_units =  None
 ):
     
-    tested_positions = list(product(
-        range(int(x_range[0]*100), int(x_range[1]*100), step),
-        range(int(y_range[0]*100), int(y_range[1]*100), step)
-    ))
+    initial_time = time.time()
     
+    tested_positions = list(
+        filter(
+            range_filter,
+            map(
+                lambda x : (x[0]/1000, x[1]/1000, x[2]),
+                product(
+                    range(int(x_range[0]*1000), int(x_range[1]*1000), step),
+                    range(int(y_range[0]*1000), int(y_range[1]*1000), step), 
+                    z_list
+                )
+            )
+        )
+    )
+    
+    ikine_positions = []
+    
+    for x, y, z in tested_positions:
+        try:
+            t0, t1, t2, t3, _, _ = mapping(ikine([x, y, z], l1, l2, l3))
+            ikine_positions.append((x, y, z, t0, t1, t2, t3))
+        except:
+            pass
+    
+    ikine_positions = sort_positions(ikine_positions)
+            
     data = load_results(f"ikine{x_range, y_range, z, step}")
     
-    #max_axis = max_range(z)
-
     last_position = (robot.axis0, robot.axis1, robot.axis2, robot.axis3)
     
+    if max_units is not None:
+        tested_positions = tested_positions[:max_units]
+    
+    total_positions = len(ikine_positions)
+    
+    print(f"Iniciando os testes após {time.time() - initial_time} segundos")
+    
     try:
-        for int_x, int_y in tested_positions:
-            x, y = int_x/100, int_y/100
-            data_key = f"{int_x}_{int_y}_{z}"
+        for i , val in enumerate(ikine_positions):
+            x, y,z, t0, t1, t2, t3 = val
+            
+            data_key = f"{x}, {y}, {z}, {t0}, {t1}, {t2}, {t3}"
             
             if data_key not in data:
-                t0, t1, t2, t3, _, _ = ikine([x, y, z], l1, l2, l3)
-
+                
                 robot.move_to(t0, t1, t2, t3)
-                #dynamic_sleep(last_position, (t0,t1, t2, t3))
+                print(f"Testadno posição: {i} de {total_positions}")
+                print(f"Movendo para: {t0}, {t1}, {t2}, {t3}")
+                dynamic_sleep(last_position, (t0,t1, t2, t3))
+                
                 clear_output(wait=True)
                 print("Testando posções para: ", x, y)
-                time.sleep(5)
+                camera.get_aruco0_positions()
+                camera.get_aruco0_positions()
+                
                 x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
 
                 data[data_key] = [x, y, z, t0,t1, t2, t3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height]
 
                 last_position = (t0, t1, t2, t3)
+    
     except Exception as e:
         print(f"Erro ao testar a posição: {e}")
         print(traceback.format_exception(e))
+    
     
     finally:
         save_results(data,f"ikine{(x_range, y_range, z, step)}" )

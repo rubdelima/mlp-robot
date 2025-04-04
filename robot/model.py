@@ -11,7 +11,7 @@ class Robot():
     
     def move(self):
         
-        comando = f"0:{self.axis0%180}, 1:{self.axis1%180}, 2:{self.axis2%180}, 3:{self.axis3%180}"
+        comando = f"0:{self.axis0}, 1:{self.axis1}, 2:{self.axis2}, 3:{self.axis3}"
         self.serial.write(comando.encode())
         print(f"Comando enviado: {comando}")
         time.sleep(0.1)
