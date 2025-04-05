@@ -2,7 +2,7 @@ import streamlit as st
 import serial.tools.list_ports
 import cv2
 import numpy as np
-from robot.model import Robot
+from utils.robot import Robot
 
 def initialize_robot(port):
     if port:

@@ -97,3 +97,4 @@ def max_range(z:int):
         return np.sqrt(0.080656 - z**2)
     else:
         print('z maior do que braço')
+        

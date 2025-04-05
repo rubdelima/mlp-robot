@@ -1,7 +1,6 @@
 streamlit
 pillow
 matplotlib
-roboticstoolbox-python
 opencv-contrib-python
 scikit-learn
 pyserial
@@ -10,3 +9,5 @@ numpy<2
 tqdm
 ipywidgets
 jupyter
+plotly
+seaborn
