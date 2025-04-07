@@ -103,6 +103,10 @@ def get_data_train_inike(
     max_samples :Optional[int] =  None
 ):
     
+    robot.move_to(80.0, 163.6495484174921, 171.03985026429626, 7.390301846804171)
+
+    camera.set_origin()
+
     initial_time = time.time()
     
     tested_positions = generate_positions(x_range, y_range, z_range, step)
@@ -130,7 +134,7 @@ def get_data_train_inike(
             if data_key not in data:
                 
                 robot.move_to(t0, t1, t2, t3)
-                print(f"Testadno posição: {i} de {total_positions}")
+                print(f"Testando posição: {i} de {total_positions}")
                 print(f"Movendo para: {t0}, {t1}, {t2}, {t3}")
                 dynamic_sleep(last_position, (t0,t1, t2, t3))
                 
@@ -138,9 +142,11 @@ def get_data_train_inike(
                 camera.get_aruco0_positions()
                 camera.get_aruco0_positions()
                 
-                x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
+                #x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
 
-                data[data_key] = [x, y, z, t0,t1, t2, t3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height]
+                xc_px, yc_px, xc, yc, diagonal = camera.get_aruco0_positions(plot_image=True)
+
+                data[data_key] = [x, y, z, t0, t1, t2, t3, xc_px, yc_px, xc, yc, diagonal]
 
                 last_position = (t0, t1, t2, t3)
     
@@ -152,8 +158,7 @@ def get_data_train_inike(
         save_results(data,file_name)
         df = pd.DataFrame(data.values(),columns=[
             "x", "y", "z", "t0", "t1", "t2", "t3",
-            "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3",
-            "xc", "yc", "diagonal", "b64_image", "width", "height"
+            "xc_px", "yc_px", 'xc', "yc", "diagonal"
         ])
         
         df.to_csv(f"./data/{file_name}.csv", index=False)

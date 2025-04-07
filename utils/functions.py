@@ -91,6 +91,12 @@ def mapping(theta_tgt):
     theta_out = np.rad2deg(dtheta) + [80, 80, 50, 50, 0, 0]
     return theta_out
 
+def img2real(imgpos, cameraHeight):
+    focalLength = 1500
+    real_pos_x = -(cameraHeight * imgpos[0]) / focalLength # ver a questão da orientação do braço robô
+    real_pos_y = (cameraHeight * imgpos[1]) / focalLength
+    return real_pos_x, real_pos_y
+
 def max_range(z:int):
     if(z < 0.284):
         #ARMLEN_SQD = 0.080656 # normal = 0.284
