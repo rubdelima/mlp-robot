@@ -108,8 +108,8 @@ def result_df_diff(df_tested, colected_df):
 def coords_distrib(colected_df):
     plt.figure(figsize=(8, 8))
     plt.scatter(colected_df['xc'], colected_df['yc'], color='blue', s=10)
-    plt.xlim(0, 640)
-    plt.ylim(0, 480)
+    # plt.xlim(0, 640)
+    # plt.ylim(0, 480)
     plt.xlabel('xc')
     plt.ylabel('yc')
     plt.title('Distribuição de Coordenadas')
