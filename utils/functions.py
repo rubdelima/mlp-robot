@@ -37,7 +37,7 @@ def ikine(x_target, l1, l2, l3):
     c3 = (x2**2 + z2**2 - l1**2 - l2**2) / (2 * l1 * l2)
 
     # Limitar c3 para o intervalo [-1, 1] para evitar erros no acos
-    c3 = np.clip(c3, -1, 1)
+    #c3 = np.clip(c3, -1, 1)
 
     # Calculando theta3
     theta3 = -acos(c3)
@@ -85,3 +85,22 @@ def fkine(theta, l1, l2, l3, z):
     # Retorna a posição cartesiana [x, y, z]
     pos = [x, y, z]
     return pos
+
+def mapping(theta_tgt):
+    dtheta = np.array([1, 1, -1, 1, 1, 1]) * (theta_tgt - np.radians([0, 90, 0, 0, 0, 0]))
+    theta_out = np.rad2deg(dtheta) + [80, 80, 50, 50, 0, 0]
+    return theta_out
+
+def img2real(imgpos, cameraHeight):
+    focalLength = 1500
+    real_pos_x = -(cameraHeight * imgpos[0]) / focalLength # ver a questão da orientação do braço robô
+    real_pos_y = (cameraHeight * imgpos[1]) / focalLength
+    return real_pos_x, real_pos_y
+
+def max_range(z:int):
+    if(z < 0.284):
+        #ARMLEN_SQD = 0.080656 # normal = 0.284
+        return np.sqrt(0.080656 - z**2)
+    else:
+        print('z maior do que braço')
+        

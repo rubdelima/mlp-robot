@@ -2,23 +2,28 @@ import cv2
 import base64
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.functions import *
 
 class Camera:
-    def __init__(self, webcam_index=0):
+    def __init__(self, camera_height, webcam_index=0):
         self.webcam_index = webcam_index
         self.cap = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
         self.parameters = cv2.aruco.DetectorParameters()
-        
+        self.camera_height = camera_height
+        self.x_start, self.y_start = 0, 0
         if not self.cap.isOpened():
             raise ValueError(f"Não foi possível acessar a câmera com o índice {webcam_index}")
         
-    def get_aruco0_positions(self, plot_image=False, return_base64=False):
+    def get_aruco0_positions(self, real_pos=True, plot_image=False, return_base64=False):
         self.check_camera()
         ret, frame = self.cap.read()
         
+        #if(self.x_start is None):
+        #    raise TypeError("Os valores de x_start e y_start ainda não foram registrados")
+
         if not ret:
             print("Erro ao capturar a imagem da câmera.")
             return None, None
@@ -37,9 +42,10 @@ class Camera:
             x1, y1 = int(corner[1][0]), int(corner[1][1])
             x2, y2 = int(corner[2][0]), int(corner[2][1])
             x3, y3 = int(corner[3][0]), int(corner[3][1])
-
-            xc = int((x0 + x2) / 2) # X_central
-            yc = int((y0 + y2) / 2) # Y_central
+            
+            if(x0 is not None):
+                xc_px = int((x0 + x2) / 2) - self.x_start # X_central
+                yc_px = int((y0 + y2) / 2) - self.y_start # Y_central
 
             diagonal = np.sqrt((x0 - x2)**2 + (y0 - y2)**2)
 
@@ -56,10 +62,18 @@ class Camera:
             _, buffer = cv2.imencode('.jpg', frame)
             img_base64 = base64.b64encode(buffer).decode('utf-8')
         
+        if(x0 is None):
+            return None, None, None, None, None
+
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        return x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64, width, height
+        #return x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64, width, height
+
+        if(real_pos):
+            xc, yc = img2real((xc_px, yc_px), self.camera_height)
+            return xc_px, yc_px, xc, yc, diagonal
+        return xc_px, yc_px, None, None, diagonal
     
     def show_arucos(self):
         self.check_camera()
@@ -84,6 +98,14 @@ class Camera:
         self.cap.release()
         cv2.destroyAllWindows()
 
+    def set_origin(self):
+        x, y, _, _, _ = self.get_aruco0_positions(real_pos=False, plot_image=True)
+        if(x is None):
+            print('Erro ao capturar o Aruco. Tente novamente.')
+        else:
+            self.x_start, self.y_start = x, y
+            print(f'Ponto inicial atualizado: {self.x_start}, {self.y_start}')
+
     def release(self):
         self.cap.release()
     
@@ -100,3 +122,26 @@ class Camera:
         
         if not self.cap.isOpened():
             raise ValueError(f"Não foi possível reinicializar a câmera com o índice {self.webcam_index}")
+
+    #def dist_and_rel_pos(x_px, y_px): # mudar o nome
+    #    if(x_px is not None):
+    #        real_pos = img2real((x_px, y_px))
+            
+
+'''% Cálculo de distância e posição relativa
+                if ~isempty(markers{1})
+                    aruco_detected = true;
+                    pos0 = markers{1};
+                    pos0 = pos0(1,:);
+                    pos = img2real(pos0, obj.cameraHeight);
+                    real_pos  =pos;
+                    positions_obj = markers{2};
+                    for i = 1:size(markers{2},1)
+                        obj_positions = [obj_positions; img2real(positions_obj(i,:), obj.cameraHeight)]; 
+                    end
+                    
+                    
+                    % Exibe informações
+                    textPos = pos0;
+                    imgMarked = insertText(imgMarked, textPos + [0, 30], sprintf('X: %.2f m, Y: %.2f m', pos(1), pos(2)), 'FontSize', 18, 'BoxColor', 'blue');
+                end'''

@@ -1,16 +1,14 @@
-from robot.model import Robot, FakeRobot
+from utils.robot import Robot
 import pandas as pd
 from itertools import product
-from tqdm.auto import tqdm
 import json
 import traceback
-from IPython.display import clear_output, display
+from IPython.display import clear_output
 from utils.camera import Camera
 import numpy as np
-from utils.functions import ikine, fkine
-from sklearn.preprocessing import MinMaxScaler
+from utils.functions import *
 import time
-from random import randint
+from typing import Literal, Optional
 
 def load_results(file_name):
     try:
@@ -32,314 +30,136 @@ def dynamic_sleep(last_position, new_position, max_distance=180, min_time=1, max
     print(f"Aguardando por {normalized_time:.2f} segundos...")
     time.sleep(normalized_time)
 
+def range_filter(values):
+    x, y , z= values
+    
+    return (np.sqrt(x**2 + y**2) > 0.04)
 
-def real_data_train(
-	    robot : Robot | FakeRobot, # Robô que iremos controlar
-	    camera : Camera, # Camera que iremos usar para capturar o ArUco
-	    axis0_range : tuple[int, int] = (0,180), # Range de quanto vamos variar o eixo 0 do robô
-	    axis1_range : tuple[int, int] = (0,180), # Range de quanto vamos variar o eixo 1 do robô
-	    axis2_range : tuple[int, int] = (0,180), # Range de quanto vamos variar o eixo 2 do robô
-	    axis3_range : tuple[int, int] = (0,180), # Range de quanto vamos variar o eixo 3 do robô
-        step : int = 5,  # Steps de quanto vamos variar os eixos a cada iteração
-        capture_image : bool = False, # Para salvar como um dos dados a imagem em b64
-        show_image : bool = False # Para visualzar a imagem em tempo real
-	    )->pd.DataFrame:
+def calculate_distance(p1, p2):
+    # Distância Euclidiana considerando tanto as posições (x, y, z) quanto os ângulos (t0, t1, t2, t3)
+    pos_diff = np.array(p1[:3]) - np.array(p2[:3])  # Diferença nas coordenadas (x, y, z)
+    angles_diff = np.array(p1[3:]) - np.array(p2[3:])  # Diferença nos ângulos (t0, t1, t2, t3)
     
-    axis_positions = list(product(
-        range(*axis0_range, step),range(*axis1_range, step),
-        range(*axis2_range, step),range(*axis3_range, step)
-    ))
+    return np.linalg.norm(np.concatenate((pos_diff, angles_diff)))  # Retorna a distância total
+
+def sort_positions(ikine_positions):
+    sorted_positions = [ikine_positions.pop(0)]
     
-    collection_name = f"0 {axis0_range}, 1 {axis1_range}, 2 {axis2_range}, 3 {axis3_range}, S {step}" + ("-b64" if capture_image else "")
+    while ikine_positions:
+        last_position = sorted_positions[-1]
+        closest_point = min(ikine_positions, key=lambda x: calculate_distance(last_position, x))
+        sorted_positions.append(closest_point)
+        ikine_positions.remove(closest_point)
     
-    data = load_results(collection_name)
+    return sorted_positions
+
+def generate_positions(x_range, y_range, z_range, step=10):
+    return list(
+        filter(
+            range_filter,
+            map(
+                lambda x : (x[0]/1000, x[1]/1000, x[2]/1000),
+                product(
+                    range(int(x_range[0]*1000), int(x_range[1]*1000), step),
+                    range(int(y_range[0]*1000), int(y_range[1]*1000), step), 
+                    range(int(z_range[0]*1000), int(z_range[1]*1000), step),
+                )
+            )
+        )
+    )
+
+def check_theta_range(thetas):
+    out_of_range = sum([theta is not None and (theta < 0 or theta > 180) for theta in thetas])
+    return out_of_range
+
+def calculate_joint_angles(tested_positions, l1, l2, l3, return_type:Literal["list", "dataframe"]="list"):
+    data = []
     
-    tested_axis = list(map(lambda x: tuple(map(int, x.split(", "))), data.keys()))
-    axis_positions = list(filter(lambda x : x not in tested_axis, axis_positions))
-    
-    robot.move_to(*axis_positions[0])
-    time.sleep(5) # Espera 5 segundos para o braço se mover para a posição desejada
-    last_position = axis_positions[0]
-    
-    i = 0
-    total_positions = len(axis_positions)
-    t = tqdm(axis_positions, desc=f"Testando um total de {len(axis_positions)} diferentes", total=len(axis_positions))
-    
-    try:
-        for axis0, axis1, axis2, axis3 in t:
-            
-            data_key = f"{axis0}, {axis1}, {axis2}, {axis3}"
-            
-            if data_key not in data.keys():
-                
-                robot.move_to(axis0, axis1, axis2, axis3)
-                
-                dynamic_sleep(last_position, (axis0, axis1, axis2, axis3))
-                clear_output(wait=True)
-                
-                t.refresh()
-                
-                print(f"{i}/{total_positions}")
-                i += 1
-                x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=show_image, return_base64=capture_image) 
-                
-                data[data_key] = [axis0, axis1, axis2,axis3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, width, height, b64]
-                
-                if capture_image:
-                    data[data_key].append(b64)
-                
-                last_position = (axis0, axis1, axis2, axis3)
-            
-    
-    except Exception as e:
-        print(f"Erro ao testar a posição: {e}")
-        print(traceback.format_exception(e))
-    
-    finally:
-        save_results(data, collection_name)
-        df = pd.DataFrame(data.values(), columns=["axis0", "axis1", "axis2", "axis3", "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3", "x_central", "y_central", 'diagonal', 'width', 'height'] + (["b64_image"] if capture_image else []))
-        df.to_csv(f"./data/{collection_name}.csv", index=False)
-        
+    for x, y, z in tested_positions:
         try:
-            camera.release()
+            t0, t1, t2, t3, _, _ = mapping(ikine([x, y, z], l1, l2, l3))
+            angles = [x, y, z, t0, t1, t2, t3]
+            if return_type == "dataframe":
+                out_of_range = check_theta_range([t0, t1, t2, t3])
+                angles.append(out_of_range)
+            data.append(angles)
         except:
-            print("Houve um erro ao fechar a câmera")
-        
-        return df
-
-def new_data_train(
-	    robot : Robot | FakeRobot, # Robô que iremos controlar
-	    camera : Camera, # Camera que iremos usar para capturar o ArUco
-	    x_range: int = 640,
-        y_range: int = 480,
-        z=0.12,
-        num_samples = 10,
-        step : int = 5,  # Steps de quanto vamos variar os eixos a cada iteração
-        capture_image : bool = False, # Para salvar como um dos dados a imagem em b64
-        show_image : bool = False # Para visualzar a imagem em tempo real
-	    )->pd.DataFrame:
+            continue
     
-    '''axis_positions = list(product(
-        range(*axis0_range, step),range(*axis1_range, step),
-        range(*axis2_range, step),range(*axis3_range, step)
-    ))'''
+    if return_type == "dataframe":
+        return pd.DataFrame(data, columns=["x", "y", "z", "t0", "t1", "t2", "t3", "out_of_range"])
     
-    x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=False, return_base64=capture_image)
+    return sort_positions(data)
 
-    if(x0 is None):
-        print('Aruco não localizado')
-        pass
-
-    data = pd.DataFrame(columns=['theta0', 'theta1', 'theta2', 'theta3', 'x_camera', 'y_camera', 'x', 'y'])
-
-    print(f'original: ({x0}, {y0}, {z})')
-
-    #collection_name = f"0 {axis0_range}, 1 {axis1_range}, 2 {axis2_range}, 3 {axis3_range}, S {step}" + ("-b64" if capture_image else "")
-    
-    #data = load_results(collection_name)
-    
-    #tested_axis = list(map(lambda x: tuple(map(int, x.split(", "))), data.keys()))
-    #axis_positions = list(filter(lambda x : x not in tested_axis, axis_positions))
-    
-    #robot.move_to(*axis_positions[0])
-    #time.sleep(5) # Espera 5 segundos para o braço se mover para a posição desejada
-    #last_position = axis_positions[0]
-    
-    '''i = 0
-    total_positions = len(axis_positions)
-    t = tqdm(axis_positions, desc=f"Testando um total de {len(axis_positions)} diferentes", total=len(axis_positions))
-    '''
-    try:
-        i = 0
-        while(i<num_samples):
-
-            new_pos = (randint(0,x_range), randint(0,y_range), z)
-            print(new_pos)
-            theta = ikine(new_pos, l1=0.1, l2=0.124, l3=0.06)
-
-            print(f'''angulação: 
-theta0 = {theta[0]} | theta1 = {theta[1]} | theta2 = {theta[2]} | theta3 = {theta[3]}''')
-
-            #relative_pos = (new_pos[0]-x0, new_pos[1]-y0, z)
-
-            robot.move_to(theta[0], theta[1], theta[2], theta[3])
-            time.sleep(10) # Espera 5 segundos para o braço se mover para a posição desejada
-
-            #_new
-            x0_new, y0_new, _, _, _, _, _, _, _, _, _, _, _, _ = camera.get_aruco0_positions(plot_image=show_image, return_base64=capture_image)
-
-            if(x0_new is not None):
-
-                relative_pos = (x0_new-x0, y0_new-y0, z)
-
-                print(f'''posição na câmera: ({x0_new}, {y0_new}, {z})
-    posição relativa à origem: {relative_pos}''')
-
-                data.loc[i] = [theta[0], theta[1], theta[2], theta[3], x0_new, y0_new, relative_pos[0], relative_pos[1]]
-
-                i += 1
-
-            else:
-                print('Aruco não localizado, tentando novamente')
-        '''for axis0, axis1, axis2, axis3 in t:
-            
-            data_key = f"{axis0}, {axis1}, {axis2}, {axis3}"
-            
-            if data_key not in data.keys():
-                
-                robot.move_to(axis0, axis1, axis2, axis3)
-                
-                dynamic_sleep(last_position, (axis0, axis1, axis2, axis3))
-                clear_output(wait=True)
-                
-                t.refresh()
-                
-                print(f"{i}/{total_positions}")
-                i += 1
-                x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=show_image, return_base64=capture_image) 
-                
-                data[data_key] = [axis0, axis1, axis2, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, width, height, b64]
-                
-                if capture_image:
-                    data[data_key].append(b64)
-                
-                last_position = (axis0, axis1, axis2, axis3)'''
-            
-    
-    except Exception as e:
-        print(f"Erro ao testar a posição: {e}")
-        print(traceback.format_exception(e))
-    
-    finally:
-        collection_name = 'teste'
-        #save_results(data, collection_name)
-        #df = pd.DataFrame(data.values(), columns=["axis0", "axis1", "axis2", "axis3", "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3", "x_central", "y_central", 'diagonal', 'width', 'height'] + (["b64_image"] if capture_image else []))
-        data.to_csv(f"./data/new{collection_name}.csv", index=False)
-        
-        try:
-            camera.release()
-        except:
-            print("Houve um erro ao fechar a câmera")
-        
-        return data
-
-def sim_data_train(num_amostras=1000, l1=0.1, l2=0.124, l3=0.06, x_range=(-0.5, 0.5), y_range=(-0.5, 0.5), 
-                   z_range=(-0.5, 0.5), normalize=False, folds=0):
-    """
-    Gera dados de treinamento para um robô com 4 eixos.
-
-    Parâmetros:
-    num_amostras (int): Número de amostras a serem geradas.
-    l1 (float): Comprimento do primeiro link do braço.
-    l2 (float): Comprimento do segundo link do braço.
-    l3 (float): Comprimento do terceiro link do braço.
-    x_range (tuple): Intervalo para as coordenadas x da posição final.
-    y_range (tuple): Intervalo para as coordenadas y da posição final.
-    z_range (tuple): Intervalo para as coordenadas z da posição final.
-    normalize (bool): Se True, normaliza as entradas e saídas.
-    folds (int): Número de folds para validação cruzada (não utilizado na geração de dados, apenas para a estrutura).
-
-    Retorno:
-    dados_entradas (np.array): Dados de entrada gerados.
-    dados_saidas (np.array): Dados de saída gerados.
-    """
-    dados_entradas = []  # Coordenadas (x, y, z), posição final e últimas juntas
-    dados_saidas = []    # Configurações finais das juntas (axis0, axis1, axis2, axis3)
-
-    for _ in range(num_amostras):
-        # Gerando coordenadas aleatórias dentro de um espaço de trabalho
-        '''x = np.random.uniform(x_range[0], x_range[1])
-        y = np.random.uniform(y_range[0], y_range[1])
-        z = np.random.uniform(z_range[0], z_range[1])'''
-
-        # Gerando ângulos iniciais aleatórios
-        theta1 = np.random.uniform(0, 180)
-        theta2 = np.random.uniform(0, 180)
-        theta3 = np.random.uniform(0, 180)
-        theta4 = np.random.uniform(0, 180)
-
-        theta_start = (theta1, theta2, theta3, theta4)
-
-        x, y, z = fkine(theta_start, l1, l2, l3, z=0.12)
-
-        # Gerando a posição final aleatória
-        x_final = np.random.uniform(x_range[0], x_range[1])
-        y_final = np.random.uniform(y_range[0], y_range[1])
-        z_final = np.random.uniform(z_range[0], z_range[1])
-
-        # Gerando ângulos iniciais aleatórios
-        theta1_final = np.random.uniform(0, 180)
-        theta2_final = np.random.uniform(0, 180)
-        theta3_final = np.random.uniform(0, 180)
-        theta4_final = np.random.uniform(0, 180)
-
-        theta_final = (theta1_final, theta2_final, theta3_final, theta4_final)
-
-        # Chamando a função de cinemática inversa para calcular as juntas finais
-        #theta_final = ikine([x_final, y_final, z_final], l1, l2, l3)
-
-        # Armazenando as entradas (posição inicial, posição final e configurações de juntas)
-        dados_entradas.append([x, y, z, x_final, y_final, z_final] + theta_final[:4])  # Considera 4 eixos
-        dados_saidas.append(theta_final[:4])  # Configuração final das juntas (axis0, axis1, axis2, axis3)
-
-    # Normalização (se necessário)
-    if normalize:
-        scaler_entradas = MinMaxScaler()
-        dados_entradas = scaler_entradas.fit_transform(dados_entradas)
-
-        scaler_saidas = MinMaxScaler()
-        dados_saidas = scaler_saidas.fit_transform(dados_saidas)
-
-    return np.array(dados_entradas), np.array(dados_saidas)
 
 def get_data_train_inike(
     robot : Robot,
     camera : Camera,
     x_range : tuple[float, float],
     y_range : tuple[float, float],
-    z : float = 0.1,
+    z_range : tuple[float, float] = (0.12, 0.121),
     step : int=10,
-    l1 : float=0.1, l2 : float=0.124, l3: float = 0.06
+    l1 : float=0.1, l2 : float=0.124, l3: float = 0.06,
+    max_samples :Optional[int] =  None
 ):
     
-    tested_positions = list(product(
-        range(int(x_range[0]*100), int(x_range[1]*100), step),
-        range(int(y_range[0]*100), int(y_range[1]*100), step)
-    ))
+    robot.move_to(80.0, 163.6495484174921, 171.03985026429626, 7.390301846804171)
+
+    camera.set_origin()
+
+    initial_time = time.time()
     
-    data = load_results(f"ikine{x_range, y_range, z, step}")
+    tested_positions = generate_positions(x_range, y_range, z_range, step)
+    
+    ikine_positions = calculate_joint_angles(tested_positions, l1, l2, l3, "list")
+    
+    file_name = f"ikine{x_range, y_range, z_range, step}"
+    data = load_results(file_name)
     
     last_position = (robot.axis0, robot.axis1, robot.axis2, robot.axis3)
     
+    if max_samples is not None:
+        tested_positions = tested_positions[:max_samples]
+    
+    total_positions = len(ikine_positions)
+    
+    print(f"Iniciando os testes após {time.time() - initial_time} segundos")
+    
     try:
-        for int_x, int_y in tested_positions:
-            x, y = int_x/100, int_y/100
-            data_key = f"{int_x}_{int_y}_{z}"
+        for i , val in enumerate(ikine_positions):
+            x, y,z, t0, t1, t2, t3 = val
+            
+            data_key = f"{x}, {y}, {z}, {t0}, {t1}, {t2}, {t3}"
             
             if data_key not in data:
-                t0, t1, t2, t3, _, _ = ikine([x, y, z], l1, l2, l3)
-
+                
                 robot.move_to(t0, t1, t2, t3)
-                #dynamic_sleep(last_position, (t0,t1, t2, t3))
+                print(f"Testando posição: {i} de {total_positions}")
+                print(f"Movendo para: {t0}, {t1}, {t2}, {t3}")
+                dynamic_sleep(last_position, (t0,t1, t2, t3))
+                
                 clear_output(wait=True)
-                print("Testando posções para: ", x, y)
-                time.sleep(5)
-                x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
+                camera.get_aruco0_positions()
+                camera.get_aruco0_positions()
+                
+                #x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
 
-                data[data_key] = [x, y, z, t0,t1, t2, t3, x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height]
+                xc_px, yc_px, xc, yc, diagonal = camera.get_aruco0_positions(plot_image=True)
+
+                data[data_key] = [x, y, z, t0, t1, t2, t3, xc_px, yc_px, xc, yc, diagonal]
 
                 last_position = (t0, t1, t2, t3)
+    
     except Exception as e:
         print(f"Erro ao testar a posição: {e}")
         print(traceback.format_exception(e))
     
     finally:
-        save_results(data,f"ikine{(x_range, y_range, z, step)}" )
+        save_results(data,file_name)
         df = pd.DataFrame(data.values(),columns=[
             "x", "y", "z", "t0", "t1", "t2", "t3",
-            "x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3",
-            "xc", "yc", "diagonal", "b64_image", "width", "height"
+            "xc_px", "yc_px", 'xc', "yc", "diagonal"
         ])
         
-        df.to_csv(f"./data/ikine{(x_range, y_range, z, step)}.csv", index=False)
+        df.to_csv(f"./data/{file_name}.csv", index=False)
         
