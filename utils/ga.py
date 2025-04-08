@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from narxwithga import NARXModel
+from utils.narxwithga import NARXModel
 
 class GeneticAlgorithm:
     def __init__(self, population_size, mutation_rate, crossover_rate, input_dim, X_tensor, Y_tensor, tournament_size=3):

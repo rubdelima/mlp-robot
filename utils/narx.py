@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from narxwithga import NARXModel 
 import random
 from ga import GeneticAlgorithm
+import joblib
 
 # Load and clean data
 df = pd.read_csv('data/train_data.csv')
@@ -48,6 +49,11 @@ output_scaler = StandardScaler()
 Y_train_norm = output_scaler.fit_transform(Y_train)
 Y_test_norm = output_scaler.transform(Y_test)
 
+np.save('X_test_norm.npy', X_test_norm)
+np.save('Y_test_norm.npy', Y_test_norm)
+np.save('Y_test.npy', Y_test)
+joblib.dump(output_scaler, 'output_scaler.pkl')
+
 # Convert to PyTorch tensors
 X_tensor = torch.tensor(X_train_norm, dtype=torch.float32)
 Y_tensor = torch.tensor(Y_train_norm, dtype=torch.float32)
@@ -56,7 +62,7 @@ Y_test_tensor = torch.tensor(Y_test_norm, dtype=torch.float32)
 
 # Determine input dimension
 input_dim = input_delay * X_raw.shape[1] + output_delay * Y_raw.shape[1] + X_raw.shape[1]
-'''
+
 # Run Genetic Algorithm
 ga = GeneticAlgorithm(
     population_size=100,
@@ -84,7 +90,6 @@ with torch.no_grad():
     preds_train = output_scaler.inverse_transform(preds_train_norm)
     Y_train_true = output_scaler.inverse_transform(Y_tensor.numpy())
 
-# --- Evaluation ---
 
 # Train metrics
 train_mse  = mean_squared_error(Y_train_true, preds_train)
@@ -138,8 +143,11 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-'''
 
+X_test_norm = np.load("X_test_norm.npy")
+Y_test_norm = np.load("Y_test_norm.npy")  # assuming this is still normalized
+Y_test = np.load("Y_test.npy")  # assuming this is still normalized
+output_scaler = joblib.load('output_scaler.pkl')
 input_dim = X_test_norm.shape[1]
 
 X_test_tensor = torch.tensor(X_test_norm, dtype=torch.float32)
@@ -148,6 +156,7 @@ X_test_tensor = torch.tensor(X_test_norm, dtype=torch.float32)
 model = NARXModel(input_dim=input_dim, output_dim=2)  # output_dim=2 for (x, y)
 model.load_state_dict(torch.load("best_ga_model.pth"))
 model.eval()
+
 
 # ---- Predict ----
 max_delay = max(input_delay, output_delay)
@@ -160,12 +169,10 @@ current_input = X_raw[rand_index]
 combined_input = np.concatenate([delayed_inputs, delayed_outputs, current_input])
 
 # Normalize and predict
-# Choose a random test index
 rand_test_index = random.randint(0, len(X_test_norm) - 1)
 
-# Get the normalized input and true output from test set
 input_tensor = torch.tensor(X_test_norm[rand_test_index:rand_test_index+1], dtype=torch.float32)
-true_output = Y_test[rand_test_index]  # Already unnormalized
+true_output = Y_test[rand_test_index] 
 
 # Predict
 model.eval()
