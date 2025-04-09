@@ -4,11 +4,16 @@ import time
 import pickle
 from utils.camera import Camera
 
-min_max_dict = {"xc_px": [-282.0, 293.0], "yc_px": [-53.0, 282.0], "xc": [-5.274, 5.076], "yc": [-0.954, 5.076]}
+# min_max_dict = {"xc_px": [-282.0, 293.0], "yc_px": [-53.0, 282.0], "xc": [-5.274, 5.076], "yc": [-0.954, 5.076]}
 
-def reverse_min_max(value, column_name):
-    min_value, max_value = min_max_dict[column_name]
-    return value * (max_value - min_value) + min_value
+min_max_value = {"xc_px": [-282.0, 293.0], "yc_px": [-53.0, 282.0], "xc": [-5.274, 5.076], "yc": [-0.954, 5.076]}
+
+for column in min_max_value.keys():
+    with open(f"scalers/{column}.pkl", "rb") as f:
+        min_max_value[column] = pickle.load(f)
+
+def normalize(value, column_name):
+    return min_max_value[column_name].transform(np.array([value]).reshape(-1,1))[0][0]
 
 class Robot():
     def __init__(self, serial_port, model_path='./models/mlp_base.plk'):
@@ -64,16 +69,14 @@ class Robot():
     def get_positions(self):
         return (self.axis0, self.axis1, self.axis2, self.axis3)
     
-    def go_to_display_position(self, camera:Camera):
-        camera.get_aruco0_positions()
-        camera.get_aruco0_positions()
-        xc_px, yc_px, xc, yc, diagonal = camera.get_aruco0_positions(plot_image=True)
-        xc_px, yc_px, xc, yc = reverse_min_max(xc_px, 'xc_px'), \
-                reverse_min_max(yc_px, 'yc_px'), reverse_min_max(xc, 'xc'), \
-                reverse_min_max(yc, 'yc')
+    def go_to_display_position(self, xc_px, yc_px, xc, yc):
+
+        xc_px, yc_px, xc, yc = normalize(xc_px, 'xc_px'), \
+                normalize(yc_px, 'yc_px'), normalize(xc, 'xc'), \
+                normalize(yc, 'yc')
                 
         predicted_angles = self.controller.predict([[xc_px, yc_px, xc, yc]])
         t0, t1, t2, t3 = predicted_angles[0]
         print(f"Posições Preditas: axis0={t0}, axis1={t1}, axis2={t2}, axis3={t3}")
-        # self.move_to(t0, t1, t2, t3)
+        self.move_to(t0, t1, t2, t3)
     

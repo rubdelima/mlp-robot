@@ -17,7 +17,7 @@ class Camera:
         if not self.cap.isOpened():
             raise ValueError(f"Não foi possível acessar a câmera com o índice {webcam_index}")
         
-    def get_aruco0_positions(self, real_pos=True, plot_image=False, return_base64=False):
+    def get_aruco_positions(self, aruco_value=0, real_pos=True, plot_image=False, return_base64=False):
         self.check_camera()
         ret, frame = self.cap.read()
         
@@ -34,8 +34,8 @@ class Camera:
 
         x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64 = [None]*12
 
-        if ids is not None and 0 in ids:
-            idx = list(ids).index(0)
+        if ids is not None and aruco_value in ids:
+            idx = list(ids).index(aruco_value)
             corner = corners[idx][0]
 
             x0, y0 = int(corner[0][0]), int(corner[0][1])
@@ -99,7 +99,7 @@ class Camera:
         cv2.destroyAllWindows()
 
     def set_origin(self):
-        x, y, _, _, _ = self.get_aruco0_positions(real_pos=False, plot_image=True)
+        x, y, _, _, _ = self.get_aruco_positions(real_pos=False, plot_image=True)
         if(x is None):
             print('Erro ao capturar o Aruco. Tente novamente.')
         else:

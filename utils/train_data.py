@@ -139,12 +139,12 @@ def get_data_train_inike(
                 dynamic_sleep(last_position, (t0,t1, t2, t3))
                 
                 clear_output(wait=True)
-                camera.get_aruco0_positions()
-                camera.get_aruco0_positions()
+                camera.get_aruco_positions()
+                camera.get_aruco_positions()
                 
-                #x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco0_positions(plot_image=True) 
+                #x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, b64, width, height = camera.get_aruco_positions(plot_image=True) 
 
-                xc_px, yc_px, xc, yc, diagonal = camera.get_aruco0_positions(plot_image=True)
+                xc_px, yc_px, xc, yc, diagonal = camera.get_aruco_positions(plot_image=True)
 
                 data[data_key] = [x, y, z, t0, t1, t2, t3, xc_px, yc_px, xc, yc, diagonal]
 
