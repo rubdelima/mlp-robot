@@ -91,6 +91,25 @@ def mapping(theta_tgt):
     theta_out = np.rad2deg(dtheta) + [80, 80, 50, 50, 0, 0]
     return theta_out
 
+def mapping_inverse(theta_mapped_deg):
+    """
+    Recebe os valores em graus, faz o mapeamento inverso e retorna os valores em radianos.
+    """
+    theta_mapped_deg = np.array(theta_mapped_deg)
+    offset_deg = np.array([80, 80, 50, 50, 0, 0])
+    scaling = np.array([1, 1, -1, 1, 1, 1]) 
+    offset_rad = np.radians([0, 90, 0, 0, 0, 0]) 
+
+    dtheta_deg = theta_mapped_deg - offset_deg
+
+    dtheta_rad = np.deg2rad(dtheta_deg)
+
+    theta_minus_offset_rad = dtheta_rad / scaling
+
+    theta_original_rad = theta_minus_offset_rad + offset_rad
+
+    return theta_original_rad
+
 def img2real(imgpos, cameraHeight):
     focalLength = 1500
     real_pos_x = -(cameraHeight * imgpos[0]) / focalLength # ver a questão da orientação do braço robô
