@@ -3,14 +3,21 @@ import numpy as np
 import time
 import pickle
 from utils.camera import Camera
+
+min_max_dict = {"xc_px": [-282.0, 293.0], "yc_px": [-53.0, 282.0], "xc": [-5.274, 5.076], "yc": [-0.954, 5.076]}
+
+def reverse_min_max(value, column_name):
+    min_value, max_value = min_max_dict[column_name]
+    return value * (max_value - min_value) + min_value
+
 class Robot():
-    def __init__(self, serial_port):
+    def __init__(self, serial_port, model_path='./models/mlp_base.plk'):
         self.serial = Serial(serial_port, 115200)
         time.sleep(2)
         self.reset()
         self.move()
-        with open('models/mlp.plk', 'rb') as f:
-            self.mlp = pickle.load(f)
+        with open(model_path, 'rb') as f:
+            self.controller = pickle.load(f)
     
     def move(self):
         
@@ -58,38 +65,15 @@ class Robot():
         return (self.axis0, self.axis1, self.axis2, self.axis3)
     
     def go_to_display_position(self, camera:Camera):
+        camera.get_aruco0_positions()
+        camera.get_aruco0_positions()
         xc_px, yc_px, xc, yc, diagonal = camera.get_aruco0_positions(plot_image=True)
-        t0, t1, t2, t3 = self.mlp.predict(np.array([ xc_px, yc_px, xc, yc]).reshape(1, -1)).flatten()
+        xc_px, yc_px, xc, yc = reverse_min_max(xc_px, 'xc_px'), \
+                reverse_min_max(yc_px, 'yc_px'), reverse_min_max(xc, 'xc'), \
+                reverse_min_max(yc, 'yc')
+                
+        predicted_angles = self.controller.predict([[xc_px, yc_px, xc, yc]])
+        t0, t1, t2, t3 = predicted_angles[0]
         print(f"Posições Preditas: axis0={t0}, axis1={t1}, axis2={t2}, axis3={t3}")
-        self.move_to(t0, t1, t2, t3)
-        
-class FakeRobot():
-    def __init__(self):
-        self.axis0 = 80
-        self.axis1 = 75
-        self.axis2 = 50
-        self.axis3 = 0
-    
-    def move(self):
-        
-        comando = f"0:{self.axis0%180}, 1:{self.axis1%180}, 2:{self.axis2%180}, 3:{self.axis3%180}"        
-        print(f"Comando enviado: {comando}")
-        time.sleep(0.2)
-        
-        # Lê a resposta do Arduino
-        time.sleep(0.2)
-    
-    def reset(self):
-        self.axis0 = 80
-        self.axis1 = 75
-        self.axis2 = 50
-        self.axis3 = 0
-        self.move()
-    
-    def move_to(self, axis0 =None, axis1=None, axis2=None, axis3=None):
-        self.axis0 = axis0 if axis0 is not None else self.axis0
-        self.axis1 = axis1 if axis1 is not None else self.axis1
-        self.axis2 = axis2 if axis2 is not None else self.axis2
-        self.axis3 = axis3 if axis3 is not None else self.axis3
-        self.move()
+        # self.move_to(t0, t1, t2, t3)
     
