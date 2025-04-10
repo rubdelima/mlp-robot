@@ -183,3 +183,4 @@ with torch.no_grad():
 # Output prediction and ground truth
 print(f"Predicted (x, y): {pred_original[0]}")
 print(f"True (x, y): {true_output}")
+
