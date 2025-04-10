@@ -37,23 +37,9 @@ class GeneticAlgorithm:
         parent2 = self.tournament_selection()
         return parent1, parent2
 
-    def two_point_crossover_tensor(self, tensor1, tensor2):
-        flat1 = tensor1.view(-1).clone()
-        flat2 = tensor2.view(-1).clone()
-        if flat1.numel() < 2:
-            return tensor1.clone()
-        idx = np.sort(np.random.choice(flat1.numel(), 2, replace=False))
-        new_flat = flat1.clone()
-        new_flat[idx[0]:idx[1]] = flat2[idx[0]:idx[1]]
-        return new_flat.view(tensor1.size())
-    
-    def blend_crossover_tensor(self, tensor1, tensor2, alpha=0.5):
-        return alpha * tensor1 + (1 - alpha) * tensor2
-    
     def uniform_crossover_tensor(self, tensor1, tensor2):
         mask = torch.rand_like(tensor1) < 0.5
         return torch.where(mask, tensor1, tensor2)
-
 
     def crossover(self, parent1, parent2):
         child = NARXModel(input_dim=self.input_dim).to(self.device)
@@ -87,8 +73,9 @@ class GeneticAlgorithm:
                 offspring.append(child)
 
             self.select_population(offspring)
-
             best_fitness = self.evaluate_fitness(self.population[0])
             print(f"Generation {gen+1}, Best Fitness (MSE): {best_fitness:.5f}")
 
-        return self.population[0]  # Best model
+        best_model = self.population[0]
+
+        return best_model
