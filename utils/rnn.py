@@ -4,15 +4,22 @@ import numpy as np
 
 # Define a RNN simples
 class ControlRNN(nn.Module):
-    def __init__(self, input_size=4, hidden_size=32, num_layers=1, activation='tanh', dropout_rate=0):
+    def __init__(self, input_size=3, hidden_size=32, num_layers=1, activation='tanh', dropout_rate=0):
         super(ControlRNN, self).__init__()
+        # [Hiperparâmetros]
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.activation = activation
+        self.dropout_rate = dropout_rate
+
+        # [Blocos da rede neural]
         # recebe as quatro últimas posições e dá a próxima posição como saída
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, 
                           nonlinearity=activation, dropout=dropout_rate, 
                           batch_first=True)
         # recebe a próxima posição [x, y] e dá os thetas como saída
         #self.dropout = nn.Dropout(p=drop_rate)
-        self.fc = nn.Linear(hidden_size, input_size)
+        self.fc = nn.Linear(hidden_size, 4)
 
     def forward(self, x):
         pos, _ = self.rnn(x)
