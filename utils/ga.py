@@ -54,7 +54,6 @@ class GeneticAlgorithm:
         mask = torch.rand_like(tensor1) < 0.5
         return torch.where(mask, tensor1, tensor2)
 
-
     def crossover(self, parent1, parent2):
         child = NARXModel(input_dim=self.input_dim).to(self.device)
         with torch.no_grad():
