@@ -14,18 +14,23 @@ class ControlRNN(nn.Module):
 
         # [Blocos da rede neural]
         # recebe as quatro últimas posições e dá a próxima posição como saída
-        self.rnn = nn.RNN(input_size, hidden_size, num_layers, 
-                          nonlinearity=activation, dropout=dropout_rate, 
-                          batch_first=True)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout_rate, batch_first=True)
+        self.relu = nn.ReLU()
         # recebe a próxima posição [x, y] e dá os thetas como saída
         #self.dropout = nn.Dropout(p=drop_rate)
-        self.fc = nn.Linear(hidden_size, 4)
+        self.fc1 = nn.Linear(hidden_size, 32)
+        self.tanh = nn.Tanh()
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, 4)
 
     def forward(self, x):
-        pos, _ = self.rnn(x)
-        new_pos = pos[:, -1, :]  # pegamos só a última saída
-        thetas = self.fc(new_pos)
-        return thetas
+        pos, _ = self.lstm(x)
+        pos = self.relu(pos[:, -1, :])
+        pos = self.fc1(pos)
+        pos = self.tanh(pos)
+        pos = self.fc2(pos)
+        pos = self.fc3(pos)
+        return pos # q não é pos, é theta
 
 def train_net(model, tloader, vloader, num_epochs, optimizer, lossFunc=nn.MSELoss(), delta=None, patience=None, verbose=2):
     train_losses = []

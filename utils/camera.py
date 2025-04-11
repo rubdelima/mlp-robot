@@ -17,7 +17,7 @@ class Camera:
         if not self.cap.isOpened():
             raise ValueError(f"Não foi possível acessar a câmera com o índice {webcam_index}")
         
-    def get_aruco_positions(self, aruco_value=0, real_pos=True, plot_image=False, return_base64=False):
+    def get_aruco_positions(self, aruco_value=0, real_pos=True, plot_image=False, return_base64=False, focalLength=1500):
         self.check_camera()
         ret, frame = self.cap.read()
         
@@ -71,7 +71,7 @@ class Camera:
         #return x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64, width, height
 
         if(real_pos):
-            xc, yc = img2real((xc_px, yc_px), self.camera_height)
+            xc, yc = img2real((xc_px, yc_px), self.camera_height, focalLength)
             return xc_px, yc_px, xc, yc, diagonal
         return xc_px, yc_px, None, None, diagonal
     
@@ -99,12 +99,34 @@ class Camera:
         cv2.destroyAllWindows()
 
     def set_origin(self):
-        x, y, _, _, _ = self.get_aruco_positions(real_pos=False, plot_image=True)
-        if(x is None):
-            print('Erro ao capturar o Aruco. Tente novamente.')
-        else:
-            self.x_start, self.y_start = x, y
+        #x, y, _, _, _ = self.get_aruco_positions(real_pos=False, plot_image=True)
+        self.check_camera()
+        ret, frame = self.cap.read()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=self.parameters)
+        print(ids)
+        x0, y0, x1, y1, x2, y2, x3, y3, xc, yc, diagonal, img_base64 = [None]*12
+
+        if ids is not None and corners is not None:
+            idx = list(ids).index(0)
+            corner = corners[idx][0]
+
+            x0, y0 = int(corner[0][0]), int(corner[0][1])
+            x1, y1 = int(corner[1][0]), int(corner[1][1])
+            x2, y2 = int(corner[2][0]), int(corner[2][1])
+            x3, y3 = int(corner[3][0]), int(corner[3][1])
+            
+            xc_px = int((x0 + x2) / 2) # X_central
+            yc_px = int((y0 + y2) / 2) # Y_central
+
+            self.x_start, self.y_start = xc_px, yc_px
             print(f'Ponto inicial atualizado: {self.x_start}, {self.y_start}')
+            plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            plt.title("Imagem Capturada")
+            plt.show()
+        else:
+            print('Erro ao capturar o Aruco. Tente novamente.')
+            
 
     def release(self):
         self.cap.release()

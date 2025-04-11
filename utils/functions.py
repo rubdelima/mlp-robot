@@ -1,7 +1,8 @@
 import numpy as np
 from math import atan2, acos, cos, sin
+L1, L2, L3 = 0.1, 0.124, 0.06 
 
-def ikine(x_target, l1, l2, l3):
+def ikine(x_target, l1=L1, l2=L2, l3=L3):
     """
     Calcula a configuração das juntas para um robô com 4 eixos, dado um ponto alvo no espaço.
 
@@ -110,8 +111,7 @@ def mapping_inverse(theta_mapped_deg):
 
     return theta_original_rad
 
-def img2real(imgpos, cameraHeight):
-    focalLength = 1500
+def img2real(imgpos, cameraHeight, focalLength=1500):
     real_pos_x = -(cameraHeight * imgpos[0]) / focalLength # ver a questão da orientação do braço robô
     real_pos_y = (cameraHeight * imgpos[1]) / focalLength
     return real_pos_x, real_pos_y

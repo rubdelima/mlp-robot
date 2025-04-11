@@ -16,13 +16,11 @@ def normalize(value, column_name):
     return min_max_value[column_name].transform(np.array([value]).reshape(-1,1))[0][0]
 
 class Robot():
-    def __init__(self, serial_port, model_path='./models/mlp_base.plk'):
+    def __init__(self, serial_port):
         self.serial = Serial(serial_port, 115200)
         time.sleep(2)
         self.reset()
         self.move()
-        with open(model_path, 'rb') as f:
-            self.controller = pickle.load(f)
     
     def move(self):
         
